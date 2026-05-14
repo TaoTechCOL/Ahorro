@@ -5,7 +5,7 @@
 import { MongoClient } from 'mongodb';
 
 const uri = process.env.MONGODB_URI;
-const dbName = process.env.MONGODB_DB || 'tao_ahorro';
+const dbName = process.env.MONGODB_DB || 'taotecha';
 
 if (!uri) {
   throw new Error('Falta la variable de entorno MONGODB_URI');

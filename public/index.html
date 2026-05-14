@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tao Ahorro · Brayan</title>
+
+  <!-- Tipografía editorial -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f4ede0;
+      --bg-soft: #ebe0cc;
+      --ink: #1f1a14;
+      --ink-soft: #5c5346;
+      --accent: #b14a2c;       /* terracota */
+      --accent-deep: #8a3820;
+      --moss: #4a5d3a;         /* verde musgo */
+      --moss-soft: #6f8358;
+      --gold: #c39a4a;
+      --line: #d6c8af;
+    }
+    html, body { background: var(--bg); color: var(--ink); }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-image:
+        radial-gradient(circle at 20% 10%, rgba(177, 74, 44, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 80% 90%, rgba(74, 93, 58, 0.07) 0%, transparent 40%);
+      min-height: 100vh;
+    }
+    .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .grain::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 1;
+      opacity: 0.4;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .card {
+      background: rgba(255, 252, 245, 0.7);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    .btn-primary {
+      background: var(--ink);
+      color: var(--bg);
+      transition: all 0.2s ease;
+    }
+    .btn-primary:hover { background: var(--accent-deep); transform: translateY(-1px); }
+    .btn-ghost {
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      transition: all 0.2s ease;
+    }
+    .btn-ghost:hover { background: var(--ink); color: var(--bg); }
+
+    input, select, textarea {
+      background: rgba(255, 252, 245, 0.5);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+    .progress-track {
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .progress-fill {
+      background: linear-gradient(90deg, var(--accent), var(--gold));
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .seal {
+      width: 56px; height: 56px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .ornament {
+      letter-spacing: 0.3em;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.5s ease-out backwards; }
+
+    /* Estilos para el modal */
+    .modal-backdrop {
+      background: rgba(31, 26, 20, 0.5);
+      backdrop-filter: blur(4px);
+    }
+
+    /* Toast */
+    .toast {
+      animation: fadeUp 0.3s ease-out;
+    }
+  </style>
+</head>
+<body class="grain">
+
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ====== CONFIGURACIÓN ======
+// Cambia esta URL por la de tu deployment en Vercel
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:3000/api'
+  : 'https://TU-PROYECTO.vercel.app/api'; // <-- CAMBIAR DESPUÉS DE DESPLEGAR EN VERCEL
+
+// ====== HELPERS ======
+const formatCOP = (n) => new Intl.NumberFormat('es-CO', {
+  style: 'currency', currency: 'COP', maximumFractionDigits: 0
+}).format(n || 0);
+
+const formatDate = (d) => {
+  if (!d) return '';
+  const date = new Date(d);
+  return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const apiCall = async (endpoint, options = {}) => {
+  const token = sessionStorage.getItem('tao_token');
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Error de conexión' }));
+    throw new Error(err.error || 'Error');
+  }
+  return res.json();
+};
+
+// ====== TOAST ======
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, []);
+  const colors = {
+    success: 'border-[var(--moss)] bg-[var(--moss)]/10 text-[var(--moss)]',
+    error: 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent-deep)]',
+    info: 'border-[var(--ink)] bg-white text-[var(--ink)]'
+  };
+  return (
+    <div className={`toast fixed top-6 right-6 z-50 px-5 py-3 border ${colors[type] || colors.info} shadow-lg`}>
+      <span className="font-mono text-sm">{message}</span>
+    </div>
+  );
+};
+
+// ====== LOGIN PIN ======
+const PinLogin = ({ onSuccess, showToast }) => {
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (pin.length < 4) return showToast('PIN muy corto', 'error');
+    setLoading(true);
+    try {
+      const { token } = await apiCall('/auth', {
+        method: 'POST',
+        body: JSON.stringify({ pin })
+      });
+      sessionStorage.setItem('tao_token', token);
+      onSuccess();
+    } catch (err) {
+      showToast(err.message, 'error');
+      setPin('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6 relative z-10">
+      <div className="card p-10 max-w-md w-full fade-up">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="seal">道</div>
+          <div>
+            <p className="ornament">Tao · Ahorro</p>
+            <h1 className="font-display text-3xl">Bienvenido</h1>
+          </div>
+        </div>
+        <p className="text-[var(--ink-soft)] mb-6 font-display italic text-lg leading-relaxed">
+          "El viaje de mil monedas comienza con un peso."
+        </p>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="ornament block mb-2">PIN de acceso</label>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-4 py-3 text-2xl font-mono tracking-widest text-center"
+              maxLength={8}
+              autoFocus
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary w-full py-3 font-medium tracking-wide uppercase text-sm"
+          >
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ====== MODAL NUEVA META ======
+const ModalMeta = ({ onClose, onSave, meta }) => {
+  const [form, setForm] = useState(meta || {
+    nombre: '',
+    monto_objetivo: '',
+    bolsillo_preferido: 'Nu',
+    fecha_limite: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await onSave({
+      ...form,
+      monto_objetivo: parseFloat(form.monto_objetivo)
+    });
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-4">
+      <div className="card p-8 max-w-lg w-full fade-up">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <p className="ornament">{meta ? 'Editar' : 'Nueva'} meta</p>
+            <h2 className="font-display text-3xl">{meta ? 'Ajustar rumbo' : 'Plantar semilla'}</h2>
+          </div>
+          <button onClick={onClose} className="text-2xl text-[var(--ink-soft)] hover:text-[var(--ink)]">×</button>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="ornament block mb-2">Nombre de la meta</label>
+            <input
+              type="text"
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              className="w-full px-4 py-3"
+              placeholder="ej. Viaje a Cartagena"
+              required
+            />
+          </div>
+          <div>
+            <label className="ornament block mb-2">Monto objetivo (COP)</label>
+            <input
+              type="number"
+              value={form.monto_objetivo}
+              onChange={(e) => setForm({ ...form, monto_objetivo: e.target.value })}
+              className="w-full px-4 py-3 font-mono"
+              placeholder="1500000"
+              min="1"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="ornament block mb-2">Bolsillo</label>
+              <select
+                value={form.bolsillo_preferido}
+                onChange={(e) => setForm({ ...form, bolsillo_preferido: e.target.value })}
+                className="w-full px-4 py-3"
+              >
+                <option value="Nu">Nu</option>
+                <option value="Nequi">Nequi</option>
+                <option value="Daviplata">Daviplata</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div>
+              <label className="ornament block mb-2">Fecha límite (opcional)</label>
+              <input
+                type="date"
+                value={form.fecha_limite ? form.fecha_limite.split('T')[0] : ''}
+                onChange={(e) => setForm({ ...form, fecha_limite: e.target.value })}
+                className="w-full px-4 py-3"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-ghost flex-1 py-3 uppercase text-sm tracking-wide">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1 py-3 uppercase text-sm tracking-wide">
+              {loading ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ====== MODAL DEPÓSITO ======
+const ModalDeposito = ({ meta, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    monto: '',
+    bolsillo: meta.bolsillo_preferido || 'Nu',
+    nota: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await onSave({
+      meta_id: meta._id,
+      monto: parseFloat(form.monto),
+      bolsillo: form.bolsillo,
+      nota: form.nota
+    });
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-4">
+      <div className="card p-8 max-w-md w-full fade-up">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <p className="ornament">Registrar depósito</p>
+            <h2 className="font-display text-2xl">{meta.nombre}</h2>
+          </div>
+          <button onClick={onClose} className="text-2xl text-[var(--ink-soft)] hover:text-[var(--ink)]">×</button>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="ornament block mb-2">Monto (COP)</label>
+            <input
+              type="number"
+              value={form.monto}
+              onChange={(e) => setForm({ ...form, monto: e.target.value })}
+              className="w-full px-4 py-3 font-mono text-2xl"
+              placeholder="50000"
+              min="1"
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="ornament block mb-2">Bolsillo</label>
+            <select
+              value={form.bolsillo}
+              onChange={(e) => setForm({ ...form, bolsillo: e.target.value })}
+              className="w-full px-4 py-3"
+            >
+              <option value="Nu">Nu</option>
+              <option value="Nequi">Nequi</option>
+              <option value="Daviplata">Daviplata</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div>
+            <label className="ornament block mb-2">Nota (opcional)</label>
+            <input
+              type="text"
+              value={form.nota}
+              onChange={(e) => setForm({ ...form, nota: e.target.value })}
+              className="w-full px-4 py-3"
+              placeholder="ej. extra del freelance"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-ghost flex-1 py-3 uppercase text-sm tracking-wide">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1 py-3 uppercase text-sm tracking-wide">
+              {loading ? 'Guardando...' : 'Depositar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ====== TARJETA DE META ======
+const MetaCard = ({ meta, onDeposit, onEdit, onDelete, depositos }) => {
+  const pct = Math.min(100, (meta.monto_actual / meta.monto_objetivo) * 100);
+  const restante = Math.max(0, meta.monto_objetivo - meta.monto_actual);
+  const depsDeMeta = depositos.filter(d => d.meta_id === meta._id);
+  const ultimo = depsDeMeta[0];
+  const completada = pct >= 100;
+
+  return (
+    <div className="card p-6 fade-up">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="ornament">{meta.bolsillo_preferido}</span>
+            {completada && <span className="text-xs px-2 py-0.5 bg-[var(--moss)] text-[var(--bg)]">COMPLETADA</span>}
+          </div>
+          <h3 className="font-display text-2xl font-semibold leading-tight">{meta.nombre}</h3>
+          {meta.fecha_limite && (
+            <p className="text-xs text-[var(--ink-soft)] mt-1 font-mono">
+              Límite: {formatDate(meta.fecha_limite)}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <button onClick={() => onEdit(meta)} className="text-[var(--ink-soft)] hover:text-[var(--ink)] p-1" title="Editar">
+            ✎
+          </button>
+          <button onClick={() => onDelete(meta)} className="text-[var(--ink-soft)] hover:text-[var(--accent)] p-1" title="Eliminar">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div className="my-5">
+        <div className="flex justify-between items-baseline mb-2 font-mono text-sm">
+          <span className="text-[var(--ink-soft)]">{formatCOP(meta.monto_actual)}</span>
+          <span className="text-[var(--ink)] font-semibold">{pct.toFixed(0)}%</span>
+        </div>
+        <div className="progress-track h-3 rounded-sm">
+          <div className="progress-fill h-full" style={{ width: `${pct}%` }}></div>
+        </div>
+        <div className="flex justify-between mt-2 text-xs font-mono text-[var(--ink-soft)]">
+          <span>de {formatCOP(meta.monto_objetivo)}</span>
+          <span>faltan {formatCOP(restante)}</span>
+        </div>
+      </div>
+
+      {ultimo && (
+        <p className="text-xs text-[var(--ink-soft)] italic mb-4">
+          último: {formatCOP(ultimo.monto)} · {formatDate(ultimo.fecha)}
+        </p>
+      )}
+
+      <button
+        onClick={() => onDeposit(meta)}
+        disabled={completada}
+        className="btn-primary w-full py-2.5 uppercase text-xs tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {completada ? '✓ Meta lograda' : '+ Depositar'}
+      </button>
+    </div>
+  );
+};
+
+// ====== GRÁFICA DE PROGRESO ======
+const Grafica = ({ depositos }) => {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+
+    // Agrupar por día (últimos 30 días)
+    const hoy = new Date();
+    const dias = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(hoy);
+      d.setDate(d.getDate() - i);
+      dias.push(d.toISOString().split('T')[0]);
+    }
+    const totales = dias.map(dia =>
+      depositos
+        .filter(dep => dep.fecha.split('T')[0] === dia)
+        .reduce((s, dep) => s + dep.monto, 0)
+    );
+
+    chartRef.current = new Chart(canvasRef.current, {
+      type: 'bar',
+      data: {
+        labels: dias.map(d => {
+          const date = new Date(d);
+          return `${date.getDate()}/${date.getMonth() + 1}`;
+        }),
+        datasets: [{
+          data: totales,
+          backgroundColor: '#b14a2c',
+          borderRadius: 3,
+          barThickness: 'flex',
+          maxBarThickness: 14
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v,
+              color: '#5c5346',
+              font: { family: 'JetBrains Mono', size: 10 }
+            },
+            grid: { color: '#d6c8af' }
+          },
+          x: {
+            ticks: { color: '#5c5346', font: { family: 'JetBrains Mono', size: 9 } },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+    return () => chartRef.current?.destroy();
+  }, [depositos]);
+
+  return (
+    <div className="card p-6">
+      <div className="flex justify-between items-baseline mb-4">
+        <div>
+          <p className="ornament">Últimos 30 días</p>
+          <h3 className="font-display text-xl">Cadencia de depósitos</h3>
+        </div>
+      </div>
+      <div style={{ height: '180px' }}>
+        <canvas ref={canvasRef}></canvas>
+      </div>
+    </div>
+  );
+};
+
+// ====== HISTORIAL ======
+const Historial = ({ depositos, metas }) => {
+  const recientes = depositos.slice(0, 10);
+  return (
+    <div className="card p-6">
+      <p className="ornament mb-1">Historial</p>
+      <h3 className="font-display text-xl mb-4">Últimos movimientos</h3>
+      {recientes.length === 0 ? (
+        <p className="text-[var(--ink-soft)] italic font-display text-center py-8">
+          Aún no hay depósitos.<br/>El primer paso es siempre el más importante.
+        </p>
+      ) : (
+        <div className="divide-y divide-[var(--line)]">
+          {recientes.map((dep) => {
+            const meta = metas.find(m => m._id === dep.meta_id);
+            return (
+              <div key={dep._id} className="py-3 flex justify-between items-start">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{meta?.nombre || 'Meta eliminada'}</p>
+                  <p className="text-xs text-[var(--ink-soft)] font-mono">
+                    {formatDate(dep.fecha)} · {dep.bolsillo}
+                    {dep.nota && ` · ${dep.nota}`}
+                  </p>
+                </div>
+                <span className="font-mono font-semibold text-[var(--accent-deep)]">
+                  +{formatCOP(dep.monto)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ====== APP PRINCIPAL ======
+const App = () => {
+  const [authed, setAuthed] = useState(!!sessionStorage.getItem('tao_token'));
+  const [metas, setMetas] = useState([]);
+  const [depositos, setDepositos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalMeta, setModalMeta] = useState(null);     // null | {} | meta-obj
+  const [modalDeposito, setModalDeposito] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info') => setToast({ message, type });
+
+  const cargar = async () => {
+    try {
+      setLoading(true);
+      const [m, d] = await Promise.all([
+        apiCall('/metas'),
+        apiCall('/depositos')
+      ]);
+      setMetas(m.metas || []);
+      setDepositos(d.depositos || []);
+    } catch (err) {
+      if (err.message.includes('401') || err.message.toLowerCase().includes('autori')) {
+        sessionStorage.removeItem('tao_token');
+        setAuthed(false);
+      } else {
+        showToast(err.message, 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authed) cargar();
+  }, [authed]);
+
+  const guardarMeta = async (data) => {
+    try {
+      if (data._id) {
+        await apiCall(`/metas?id=${data._id}`, { method: 'PUT', body: JSON.stringify(data) });
+        showToast('Meta actualizada', 'success');
+      } else {
+        await apiCall('/metas', { method: 'POST', body: JSON.stringify(data) });
+        showToast('Meta creada', 'success');
+      }
+      setModalMeta(null);
+      cargar();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const eliminarMeta = async (meta) => {
+    if (!confirm(`¿Eliminar meta "${meta.nombre}"? También se borrarán sus depósitos.`)) return;
+    try {
+      await apiCall(`/metas?id=${meta._id}`, { method: 'DELETE' });
+      showToast('Meta eliminada', 'success');
+      cargar();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const registrarDeposito = async (data) => {
+    try {
+      await apiCall('/depositos', { method: 'POST', body: JSON.stringify(data) });
+      showToast('Depósito registrado ✓', 'success');
+      setModalDeposito(null);
+      cargar();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const stats = useMemo(() => {
+    const totalAhorrado = metas.reduce((s, m) => s + (m.monto_actual || 0), 0);
+    const totalObjetivo = metas.reduce((s, m) => s + (m.monto_objetivo || 0), 0);
+    const completadas = metas.filter(m => m.monto_actual >= m.monto_objetivo).length;
+    return { totalAhorrado, totalObjetivo, completadas, activas: metas.length - completadas };
+  }, [metas]);
+
+  if (!authed) {
+    return (
+      <>
+        <PinLogin onSuccess={() => setAuthed(true)} showToast={showToast} />
+        {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      </>
+    );
+  }
+
+  return (
+    <div className="relative z-10 min-h-screen">
+      {/* HEADER */}
+      <header className="border-b border-[var(--line)] bg-[var(--bg)]/80 backdrop-blur sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-6 py-5 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="seal">道</div>
+            <div>
+              <p className="ornament">Tao · Ahorro</p>
+              <h1 className="font-display text-xl font-semibold leading-tight">Diario de metas</h1>
+            </div>
+          </div>
+          <button
+            onClick={() => { sessionStorage.removeItem('tao_token'); setAuthed(false); }}
+            className="text-xs uppercase tracking-widest text-[var(--ink-soft)] hover:text-[var(--ink)]"
+          >
+            Salir
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        {/* RESUMEN HERO */}
+        <section className="mb-10 fade-up">
+          <p className="ornament mb-2">Resumen</p>
+          <h2 className="font-display text-5xl md:text-6xl font-light leading-none mb-2">
+            {formatCOP(stats.totalAhorrado)}
+          </h2>
+          <p className="font-display italic text-[var(--ink-soft)] text-lg">
+            de {formatCOP(stats.totalObjetivo)} en total
+            {stats.totalObjetivo > 0 && ` · ${((stats.totalAhorrado/stats.totalObjetivo)*100).toFixed(0)}%`}
+          </p>
+          <div className="flex gap-6 mt-6 font-mono text-sm">
+            <div>
+              <span className="text-[var(--ink-soft)]">Activas </span>
+              <span className="font-semibold">{stats.activas}</span>
+            </div>
+            <div>
+              <span className="text-[var(--ink-soft)]">Completadas </span>
+              <span className="font-semibold text-[var(--moss)]">{stats.completadas}</span>
+            </div>
+            <div>
+              <span className="text-[var(--ink-soft)]">Depósitos </span>
+              <span className="font-semibold">{depositos.length}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* METAS */}
+        <section className="mb-10">
+          <div className="flex justify-between items-baseline mb-6">
+            <div>
+              <p className="ornament">Tus metas</p>
+              <h2 className="font-display text-3xl">Caminos en curso</h2>
+            </div>
+            <button onClick={() => setModalMeta({})} className="btn-primary px-5 py-2.5 uppercase text-xs tracking-widest">
+              + Nueva meta
+            </button>
+          </div>
+          {loading ? (
+            <p className="text-center text-[var(--ink-soft)] italic py-12 font-display">Cargando...</p>
+          ) : metas.length === 0 ? (
+            <div className="card p-12 text-center">
+              <p className="font-display italic text-xl text-[var(--ink-soft)] mb-2">
+                "El árbol más alto nace de la semilla más pequeña."
+              </p>
+              <p className="text-sm text-[var(--ink-soft)] mb-6">— Lao Tsé</p>
+              <button onClick={() => setModalMeta({})} className="btn-primary px-6 py-3 uppercase text-sm tracking-widest">
+                Crear primera meta
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {metas.map((meta) => (
+                <MetaCard
+                  key={meta._id}
+                  meta={meta}
+                  depositos={depositos}
+                  onDeposit={setModalDeposito}
+                  onEdit={setModalMeta}
+                  onDelete={eliminarMeta}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* GRÁFICA + HISTORIAL */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Grafica depositos={depositos} />
+          <Historial depositos={depositos} metas={metas} />
+        </section>
+
+        <footer className="mt-16 pt-8 border-t border-[var(--line)] text-center">
+          <p className="ornament">道 Tao Ahorro · TaoTech</p>
+          <p className="font-display italic text-sm text-[var(--ink-soft)] mt-2">
+            "Quien sabe ahorrar, conoce el camino del agua: gota a gota labra la piedra."
+          </p>
+        </footer>
+      </main>
+
+      {modalMeta !== null && (
+        <ModalMeta
+          meta={Object.keys(modalMeta).length > 0 ? modalMeta : null}
+          onClose={() => setModalMeta(null)}
+          onSave={guardarMeta}
+        />
+      )}
+      {modalDeposito && (
+        <ModalDeposito
+          meta={modalDeposito}
+          onClose={() => setModalDeposito(null)}
+          onSave={registrarDeposito}
+        />
+      )}
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>

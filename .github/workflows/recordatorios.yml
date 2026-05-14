@@ -1,0 +1,55 @@
+name: Recordatorios de Ahorro
+
+on:
+  schedule:
+    # Chequeo diario de inactividad a las 8pm hora Colombia (UTC-5 → 01:00 UTC del día siguiente)
+    - cron: '0 1 * * *'
+    # Resumen semanal los domingos a las 7pm Colombia (UTC-5 → 00:00 UTC lunes)
+    - cron: '0 0 * * 1'
+  # Permite ejecutar manualmente desde la pestaña Actions de GitHub
+  workflow_dispatch:
+    inputs:
+      tipo:
+        description: 'Tipo de notificación'
+        required: true
+        default: 'inactividad'
+        type: choice
+        options:
+          - inactividad
+          - semanal
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar endpoint de recordatorios
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # Determinar tipo según el cron que disparó
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TIPO="${{ github.event.inputs.tipo }}"
+          elif [ "${{ github.event.schedule }}" = "0 0 * * 1" ]; then
+            TIPO="semanal"
+          else
+            TIPO="inactividad"
+          fi
+
+          echo "Disparando notificación: $TIPO"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            -H "x-cron-secret: $CRON_SECRET" \
+            "$API_URL/check-reminders?tipo=$TIPO")
+
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          STATUS=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP $STATUS"
+          echo "$BODY"
+
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ Falló la llamada"
+            exit 1
+          fi
+          echo "✅ OK"

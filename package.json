@@ -1,0 +1,17 @@
+{
+  "name": "tao-ahorro",
+  "version": "1.0.0",
+  "description": "Sistema personal de metas de ahorro · TaoTech",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod",
+    "hash-pin": "node scripts/hash-pin.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "mongodb": "^6.10.0",
+    "nodemailer": "^6.9.16"
+  }
+}
